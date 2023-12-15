@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+    <title>키워드 입력 장소 검색</title>
+    <script type="text/javascript"
+        src="//dapi.kakao.com/v2/maps/sdk.js?appkey=b9780be3749cba574e29987317cebdc4&libraries=services,clusterer,drawing"></script>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        header {
+            background-color: #FFD1E9;
+            color: #240214;
+            text-align: center;
+            padding: 10px;
+        }
+
+        main {
+            max-width: 1000px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+
+        h2 {
+            color: #333;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        input[type="date"],
+        input[type="time"],
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #FFD1E9;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #map-container {
+            width: 1200px;
+            height: 600px;
+            margin: 20px auto;
+            display: flex;
+            border: 1px solid #0000;
+            align-items: center;
+        }
+
+        #map {
+            width: 500px;
+            height: 500px;
+            border-right: 1px solid #0000;
+        }
+
+        #search-container {
+            width: 500px;
+            height: 500px;
+            padding: 20px;
+            box-sizing: border-box;
+            background-color: #f4f4f4;
+        }
+
+        #todo-container {
+            width: 1000px;
+            height: 1000px;
+            border: 1px solid #0000;
+            position: absolute;
+            top: 750px;
+        }
+
+        #keyword {
+            width: 60%;
+            padding: 10px;
+            font-size: 15px;
+        }
+
+        #search-btn {
+            width: 30%;
+            padding: 10px;
+            font-size: 13px;
+            background-color: rgb(255, 234, 0);
+            color: #000000;
+            cursor: pointer;
+        }
+
+        #search-result {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .item:hover {
+            background-color: #f0f0f0;
+        }
+
+        .marker {
+            width: 20px;
+            height: 20px;
+            background-color: #ffff00;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .info {
+            font-size: 16px;
+        }
+
+        .marker-info-box {
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #00000000;
+        }
+    </style>
+
+<body>
+    <header>
+        <h1>시간별 할일 플래너</h1>
+    </header>
+    
+    <div id="container">
+        <div id="map-container">
+            <div id="map"></div>
+            <script>
+                // 마커를 클릭하면 장소명을 표출할 인포윈도우
+                var infowindow = new kakao.maps.InfoWindow({ zIndex: 1 });
+
+                var mapContainer = document.getElementById('map'), // 지도를 표시할 div 
+                    mapOption = {
+                        center: new kakao.maps.LatLng(37.566826, 126.9786567), // 지도의 중심좌표
+                        level: 3 // 지도의 확대 레벨
+                    };
+
+                // 지도를 생성
+                var map = new kakao.maps.Map(mapContainer, mapOption);
+                map.addOverlayMapTypeId(kakao.maps.MapTypeId.TRAFFIC);
+
+
+                // 지도에 마커를 표시하는 함수
+                function displayMarker(place) {
+
+                    // 마커를 생성하고 지도에 표시
+                    var marker = new kakao.maps.Marker({
+                        map: map,
+                        position: new kakao.maps.LatLng(place.y, place.x)
+                    });
+
+                    // 마커에 클릭이벤트를 등록
+                    kakao.maps.event.addListener(marker, 'click', function () {
+                        // 마커를 클릭하면 장소명이 인포윈도우에 표출
+                        infowindow.setContent('<div style="padding:5px;font-size:12px;">' + place.place_name + '</div>');
+                        infowindow.open(map, marker);
+                    });
+                }
+            </script>
+            <div id="search-container">
+                <input type="text" id="keyword" placeholder="검색어 입력">
+                <button id="search-btn" onclick="searchPlaces()">검색</button>
+                <div id="search-result"></div>
+                <script>
+                    var ps = new kakao.maps.services.Places();
+                    //키워드 입력받는 함수
+                    function searchPlaces() {
+                        var keyword = document.getElementById('keyword').value;
+
+                        if (!keyword.replace(/^\s+|\s+$/g, '')) {
+                            alert('키워드를 입력해주세요!');
+                            return false;
+                        }
+
+                        ps.keywordSearch(keyword, placesSearchCB);
+                    }
+
+                    function placesSearchCB(data, status, pagination) {
+                        var searchResultList = document.getElementById('search-result');
+
+                        if (status === kakao.maps.services.Status.OK) {
+                            // 검색된 장소 위치를 기준으로 지도 범위를 재설정하기 위해
+                            // LatLngBounds 객체에 좌표를 추가
+                            var bounds = new kakao.maps.LatLngBounds();
+
+                            // 검색 결과 목록을 초기화
+                            searchResultList.innerHTML = '';
+
+                            for (var i = 0; i < data.length; i++) {
+                                // 지도에 마커 표시
+                                displayMarker(data[i]);
+                                // 검색 목록에 추가
+                                addToSearchResultList(data[i], i + 1);
+                                bounds.extend(new kakao.maps.LatLng(data[i].y, data[i].x));
+                            }
+
+                            // 검색된 장소 위치를 기준으로 지도 범위를 재설정
+                            map.setBounds(bounds);
+                        } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
+                            alert('검색 결과가 존재하지 않습니다.');
+                        } else if (status === kakao.maps.services.Status.ERROR) {
+                            alert('검색 결과 중 오류가 발생했습니다.');
+                        }
+                    }
+
+                    // 검색 목록에 추가하는 함수
+                    function addToSearchResultList(place, index) {
+                        var searchResultList = document.getElementById('search-result');
+
+                        var item = document.createElement('div');
+                        item.className = 'item';
+                        item.onclick = function () {
+                            // 검색된 장소를 클릭하면 해당 장소로 지도 이동
+                            moveToPlace(place);
+                        };
+
+                        var marker = document.createElement('div');
+                        marker.className = 'marker';
+                        marker.innerText = index;
+
+                        var info = document.createElement('div');
+                        info.className = 'info';
+                        info.innerText = place.place_name;
+
+                        item.appendChild(marker);
+                        item.appendChild(info);
+
+                        searchResultList.appendChild(item);
+                    }
+
+                    // 장소로 지도 이동하는 함수
+                    function moveToPlace(place) {
+                        var moveLatLng = new kakao.maps.LatLng(place.y, place.x);
+                        map.setCenter(moveLatLng);
+                    }
+                </script>
+            </div>
+            <div id="todo-container">
+                <main>
+                    <h2>TO DO LIST</h2>
+                    <ul id="todoList"></ul>
+
+                    <h2>새로운 할일 추가</h2>
+                    <form id="todoForm">
+                        <label for="todoTime">시간:</label>
+                        <input type="time" id="todoTime" required>
+                        <label for="todoTask">할일:</label>
+                        <input type="text" id="todoTask" required>
+                        <button type="button" onclick="addTodo()">추가</button>
+                    </form>
+                </main>
+
+                <script>
+                    function addTodo() {
+                        const timeInput = document.getElementById('todoTime');
+                        const taskInput = document.getElementById('todoTask');
+                        const todoList = document.getElementById('todoList');
+
+                        const time = timeInput.value;
+                        const task = taskInput.value;
+
+                        if (time && task) {
+                            const li = document.createElement('li');
+                            li.innerHTML = `
+          <div>
+            <strong>${time}</strong>: ${task}
+          </div>
+          <div class="actions">
+            <button onclick="editTodo(this)">수정</button>
+            <button onclick="deleteTodo(this)">삭제</button>
+          </div>
+        `;
+
+
+                            let insertPosition = 0;
+                            const existingItems = todoList.children;
+                            for (let i = 0; i < existingItems.length; i++) {
+                                const existingTime = existingItems[i].querySelector('strong').textContent;
+                                if (time.localeCompare(existingTime) > 0) {
+                                    insertPosition = i + 1;
+                                } else {
+                                    break;
+                                }
+                            }
+
+
+                            if (insertPosition < existingItems.length) {
+                                todoList.insertBefore(li, existingItems[insertPosition]);
+                            } else {
+                                todoList.appendChild(li);
+                            }
+
+
+                            timeInput.value = '';
+                            taskInput.value = '';
+                        } else {
+                            alert('시간과 할일을 모두 입력하세요.');
+                        }
+                    }
+
+                    function editTodo(element) {
+                        const li = element.parentNode.parentNode;
+                        const time = li.querySelector('strong').textContent;
+                        const task = li.textContent.split(': ')[1].split(' ')[0];
+
+                        const timeInput = document.getElementById('todoTime');
+                        const taskInput = document.getElementById('todoTask');
+
+                        timeInput.value = time;
+                        taskInput.value = task;
+
+
+                        li.remove();
+                    }
+
+                    function deleteTodo(element) {
+                        const confirmDelete = confirm('이 할일을 삭제하시겠습니까?');
+                        if (confirmDelete) {
+                            element.parentNode.parentNode.remove();
+                        }
+                    }
+
+                </script>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
